@@ -12,7 +12,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// ── Base de datos ─────────────────────────────────────────────
 const db = new Database(process.env.DB_PATH || './pedidos.db');
 db.exec(`
   CREATE TABLE IF NOT EXISTS pedidos (
@@ -32,16 +31,13 @@ db.exec(`
   )
 `);
 
-// ── Mercado Pago ──────────────────────────────────────────────
 const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
 
-// ── Nodemailer ────────────────────────────────────────────────
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
 });
 
-// ── Helpers ───────────────────────────────────────────────────
 const COMUNAS_PERMITIDAS = ['lo barnechea', 'vitacura', 'las condes'];
 
 function detectarComuna(direccion) {
@@ -54,11 +50,9 @@ function detectarComuna(direccion) {
 
 function pedidosAbiertos() {
   const ahora = new Date();
-  const dia = ahora.getDay(); // 0=Dom,1=Lun,2=Mar,3=Mie,4=Jue,5=Vie,6=Sab
+  const dia = ahora.getDay();
   const hora = ahora.getHours() + ahora.getMinutes() / 60;
-  // Cerrado: jueves antes de las 15:00 (repartiendo)
   if (dia === 4 && hora < 15) return false;
-  // Cerrado: miercoles despues de las 21:00
   if (dia === 3 && hora >= 21) return false;
   return true;
 }
@@ -67,13 +61,9 @@ function proximoJueves() {
   const ahora = new Date();
   const dia = ahora.getDay();
   const hora = ahora.getHours() + ahora.getMinutes() / 60;
-  // Dias hasta el proximo jueves
   let diff = (4 - dia + 7) % 7;
-  // Si hoy es jueves antes de las 15, el proximo disponible es el jueves siguiente
   if (dia === 4 && hora < 15) diff = 7;
-  // Si es miercoles > 21, ya se cierran para el jueves de esta semana -> saltar al siguiente
-  if (dia === 3 && hora >= 21) diff = (4 - dia + 7) % 7; // = 1 dia
-  // Si diff es 0 y no es el caso anterior (ej: es jueves >= 15), ir al siguiente jueves
+  if (dia === 3 && hora >= 21) diff = (4 - dia + 7) % 7;
   if (diff === 0) diff = 7;
   const jueves = new Date(ahora);
   jueves.setDate(ahora.getDate() + diff);
@@ -119,18 +109,16 @@ async function enviarConfirmacion({ nombre, email, cantidad, fecha_despacho, dir
   });
 }
 
-// ── API: estado de pedidos ────────────────────────────────────
 app.get('/api/estado', (req, res) => {
   const abierto = pedidosAbiertos();
   const jueves = proximoJueves();
   res.json({
     abierto,
     proximo_jueves: jueves.toLocaleDateString('es-CL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-    mensaje: abierto ? null : 'Los pedidos están cerrados. Reabre el lunes a las 00:00 hrs.',
+    mensaje: abierto ? null : 'Los pedidos están cerrados. Reabre el jueves a las 15:00 hrs.',
   });
 });
 
-// ── API: validar dirección ────────────────────────────────────
 app.post('/api/validar-direccion', (req, res) => {
   const { direccion } = req.body;
   const comuna = detectarComuna(direccion || '');
@@ -140,10 +128,9 @@ app.post('/api/validar-direccion', (req, res) => {
   res.json({ valida: true, comuna });
 });
 
-// ── Crear preferencia ─────────────────────────────────────────
 app.post('/crear-preferencia', async (req, res) => {
   if (!pedidosAbiertos()) {
-    return res.status(400).json({ error: 'Los pedidos están cerrados. Reabre el lunes a las 00:00 hrs.' });
+    return res.status(400).json({ error: 'Los pedidos están cerrados. Reabre el jueves a las 15:00 hrs.' });
   }
   const { nombre, email, cantidad, fecha_despacho, direccion } = req.body;
   if (!nombre?.trim()) return res.status(400).json({ error: 'El nombre es requerido' });
@@ -172,12 +159,8 @@ app.post('/crear-preferencia', async (req, res) => {
         notification_url: `${process.env.BASE_URL || 'http://localhost:3000'}/webhook`,
       },
     });
-
-    // Guardar pedido como pendiente
-    db.prepare(`INSERT INTO pedidos (nombre, email, direccion, comuna, cantidad, unidades, total, fecha_despacho, mp_preference_id, estado)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`
-    ).run(nombre, email, direccion, comuna, cantidad, cantidad * 75, total, fecha_despacho, preference.id);
-
+    db.prepare(`INSERT INTO pedidos (nombre, email, direccion, comuna, cantidad, unidades, total, fecha_despacho, mp_preference_id, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente')`)
+      .run(nombre, email, direccion, comuna, cantidad, cantidad * 75, total, fecha_despacho, preference.id);
     res.json({ init_point: preference.init_point, sandbox_init_point: preference.sandbox_init_point });
   } catch (error) {
     console.error('Error MP:', error);
@@ -185,7 +168,6 @@ app.post('/crear-preferencia', async (req, res) => {
   }
 });
 
-// ── Webhook ───────────────────────────────────────────────────
 app.post('/webhook', async (req, res) => {
   const { type, data } = req.body;
   if (type === 'payment' && data?.id) {
@@ -210,7 +192,6 @@ app.post('/webhook', async (req, res) => {
   res.sendStatus(200);
 });
 
-// ── Panel del repartidor ──────────────────────────────────────
 app.get('/repartidor', (req, res) => {
   const pass = req.query.pass;
   if (pass !== process.env.PANEL_PASSWORD) {
@@ -229,14 +210,10 @@ app.get('/repartidor', (req, res) => {
 
   const jueves = proximoJueves().toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' });
   const pedidos = db.prepare(`SELECT * FROM pedidos WHERE estado='pagado' ORDER BY comuna, nombre`).all();
-
+  const comunas = ['Lo Barnechea', 'Vitacura', 'Las Condes'];
   const porComuna = {};
-  COMUNAS_PERMITIDAS.forEach(c => { porComuna[c.replace(/\b\w/g, l => l.toUpperCase())] = []; });
-  pedidos.forEach(p => {
-    if (!porComuna[p.comuna]) porComuna[p.comuna] = [];
-    porComuna[p.comuna].push(p);
-  });
-
+  comunas.forEach(c => { porComuna[c] = []; });
+  pedidos.forEach(p => { if (!porComuna[p.comuna]) porComuna[p.comuna] = []; porComuna[p.comuna].push(p); });
   const totalCajas = pedidos.reduce((a, p) => a + p.cantidad, 0);
   const totalDonuts = pedidos.reduce((a, p) => a + p.unidades, 0);
 
@@ -269,22 +246,19 @@ app.get('/repartidor', (req, res) => {
   res.send(`
     <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Panel Repartidor – Donuts</title>
-    <style>body{font-family:sans-serif;background:#f9f5f0;color:#2d1a0e;margin:0;padding:0}
+    <style>body{font-family:sans-serif;background:#f9f5f0;color:#2d1a0e;margin:0}
     .header{background:#2d1a0e;color:#fff;padding:16px 24px;display:flex;align-items:center;gap:12px}
     .container{max-width:900px;margin:0 auto;padding:24px 16px}
     .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px}
     .stat{background:#fff;border-radius:12px;padding:16px;text-align:center;border:0.5px solid #e0d8d0}
     .stat-num{font-size:28px;font-weight:600;color:#e8612a}
     .stat-label{font-size:12px;color:#9a7060;margin-top:4px}
-    @media print{.no-print{display:none}.header{background:#2d1a0e!important;-webkit-print-color-adjust:exact}}
-    </style></head>
+    @media print{.no-print{display:none}}</style></head>
     <body>
     <div class="header">
       <span style="font-size:24px">🍩</span>
-      <div>
-        <div style="font-weight:600;font-size:16px">Panel del Repartidor</div>
-        <div style="font-size:12px;opacity:0.7">Despacho: jueves ${jueves}</div>
-      </div>
+      <div><div style="font-weight:600;font-size:16px">Panel del Repartidor</div>
+      <div style="font-size:12px;opacity:0.7">Despacho: jueves ${jueves}</div></div>
       <button onclick="window.print()" class="no-print" style="margin-left:auto;padding:8px 16px;background:#e8612a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">🖨️ Imprimir</button>
     </div>
     <div class="container">
@@ -294,12 +268,10 @@ app.get('/repartidor', (req, res) => {
         <div class="stat"><div class="stat-num">${totalDonuts}</div><div class="stat-label">Donuts totales</div></div>
       </div>
       ${filasComuna}
-      ${pedidos.length === 0 ? '<p style="text-align:center;color:#9a7060;padding:40px">No hay pedidos pagados aún.</p>' : ''}
-    </div>
-    </body></html>`);
+      ${pedidos.length===0?'<p style="text-align:center;color:#9a7060;padding:40px">No hay pedidos pagados aún.</p>':''}
+    </div></body></html>`);
 });
 
-// ── Páginas de retorno ────────────────────────────────────────
 app.get('/gracias', (req, res) => res.send(`<html><body style="font-family:sans-serif;text-align:center;padding:60px;color:#2d1a0e"><h1 style="font-size:48px">🍩</h1><h2>¡Pago exitoso!</h2><p style="color:#9a7060">Revisa tu correo — te enviamos la confirmación.</p><a href="/" style="display:inline-block;margin-top:24px;padding:12px 24px;background:#e8612a;color:#fff;border-radius:10px;text-decoration:none">Hacer otro pedido</a></body></html>`));
 app.get('/error', (req, res) => res.send(`<html><body style="font-family:sans-serif;text-align:center;padding:60px"><h2>❌ Hubo un problema con el pago</h2><a href="/" style="display:inline-block;margin-top:24px;padding:12px 24px;background:#2d1a0e;color:#fff;border-radius:10px;text-decoration:none">Intentar de nuevo</a></body></html>`));
 app.get('/pendiente', (req, res) => res.send(`<html><body style="font-family:sans-serif;text-align:center;padding:60px"><h2>⏳ Pago pendiente</h2><p style="color:#9a7060">Te avisaremos por email cuando se confirme.</p></body></html>`));
