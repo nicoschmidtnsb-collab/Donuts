@@ -48,4 +48,219 @@
     .dir-feedback{font-size:12px;margin-top:4px;min-height:16px}
     .dir-feedback.ok{color:var(--ok)}
     .dir-feedback.err{color:var(--err)}
-    .cal-header{display:flex;align-items:center;justify-content:space-between;marg
+    .cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .cal-header span{font-size:14px;font-weight:500;color:var(--primary)}
+    .cal-nav{background:none;border:0.5px solid var(--border);border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:14px;color:var(--muted);display:flex;align-items:center;justify-content:center}
+    .cal-nav:hover{background:var(--light)}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+    .cal-day-name{text-align:center;font-size:11px;color:var(--muted);padding:4px 0;font-weight:500}
+    .cal-day-name.thu{color:var(--accent);font-weight:600}
+    .cal-cell{aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:default;color:#ccc}
+    .cal-cell.thursday{background:var(--light);color:var(--primary);cursor:pointer;font-weight:500;border:0.5px solid rgba(232,97,42,0.3)}
+    .cal-cell.thursday:hover{background:#fde0ce;border-color:var(--accent)}
+    .cal-cell.selected{background:var(--primary);color:#fff!important;border-color:transparent}
+    .dispatch-note{font-size:12px;color:var(--muted);text-align:center;margin-top:8px}
+    .dispatch-note span{color:var(--accent);font-weight:500}
+    .selected-date{font-size:13px;color:var(--primary);font-weight:500;text-align:center;margin-top:8px;min-height:20px}
+    .summary{background:var(--light);border-radius:12px;padding:1rem;margin-bottom:1rem}
+    .summary-row{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:6px}
+    .summary-row.total{font-size:15px;font-weight:500;color:var(--primary);border-top:0.5px solid rgba(45,26,14,0.12);padding-top:8px;margin-top:4px;margin-bottom:0}
+    .mp-btn{width:100%;padding:14px;border-radius:12px;border:none;background:#009ee3;color:#fff;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .2s}
+    .mp-btn:hover:not(:disabled){opacity:.9}
+    .mp-btn:disabled{opacity:.4;cursor:not-allowed}
+    .warn{font-size:12px;color:#c07000;text-align:center;margin-top:8px;min-height:16px}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <div class="brand">
+    <h1>🍩 Donuts</h1>
+    <p>Despacho disponible solo los días jueves</p>
+  </div>
+  <div class="closed-banner" id="closed-banner">
+    <strong>⏰ Pedidos cerrados</strong>
+    <span id="closed-msg"></span>
+  </div>
+  <div class="step" id="step1">
+    <div class="step-header"><div class="step-num">1</div><span class="step-title">Selecciona tu producto</span></div>
+    <div class="product-card">
+      <div class="product-img">🍩</div>
+      <div class="product-info">
+        <h2>Caja de Donuts</h2>
+        <p>75 unidades por caja</p>
+        <div class="product-price">$30.000 CLP</div>
+        <div class="units-tag">75 unidades / caja</div>
+      </div>
+    </div>
+    <div class="qty-row">
+      <span class="qty-label">Cantidad de cajas</span>
+      <div class="qty-ctrl">
+        <button class="qty-btn" id="btn-minus">−</button>
+        <input class="qty-num" type="number" id="qty" value="1" min="1" max="10" readonly>
+        <button class="qty-btn" id="btn-plus">+</button>
+      </div>
+    </div>
+    <div class="units-info" id="units-info">Total: 75 donuts</div>
+  </div>
+  <div class="step" id="step2">
+    <div class="step-header"><div class="step-num">2</div><span class="step-title">Tus datos</span></div>
+    <div class="field-row">
+      <div class="field">
+        <label>Nombre completo</label>
+        <input type="text" id="nombre" placeholder="Ej: María González" autocomplete="name">
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="email" placeholder="tu@correo.cl" autocomplete="email">
+      </div>
+    </div>
+    <div class="field">
+      <label>Dirección de despacho</label>
+      <textarea id="direccion" placeholder="Ej: Av. Vitacura 1234, Vitacura"></textarea>
+      <div class="comunas-hint">Despachamos solo a <span>Lo Barnechea</span>, <span>Vitacura</span> y <span>Las Condes</span>. Incluye tu comuna.</div>
+      <div class="dir-feedback" id="dir-feedback"></div>
+    </div>
+  </div>
+  <div class="step" id="step3">
+    <div class="step-header"><div class="step-num">3</div><span class="step-title">Día de despacho</span></div>
+    <div class="cal-header">
+      <button class="cal-nav" id="prev-month">&#8249;</button>
+      <span id="month-label"></span>
+      <button class="cal-nav" id="next-month">&#8250;</button>
+    </div>
+    <div class="cal-grid" id="day-names"></div>
+    <div class="cal-grid" id="cal-cells"></div>
+    <div class="dispatch-note">Solo disponible los <span>jueves</span></div>
+    <div class="selected-date" id="selected-date-label"></div>
+  </div>
+  <div class="step" id="step4">
+    <div class="step-header"><div class="step-num">4</div><span class="step-title">Resumen y pago</span></div>
+    <div class="summary">
+      <div class="summary-row"><span>Comprador</span><span id="sum-nombre">—</span></div>
+      <div class="summary-row"><span>Producto</span><span id="sum-product">Caja de Donuts x1</span></div>
+      <div class="summary-row"><span>Unidades</span><span id="sum-units">75 donuts</span></div>
+      <div class="summary-row"><span>Comuna</span><span id="sum-comuna">—</span></div>
+      <div class="summary-row"><span>Dirección</span><span id="sum-dir" style="text-align:right;max-width:60%">—</span></div>
+      <div class="summary-row"><span>Despacho</span><span id="sum-date">—</span></div>
+      <div class="summary-row total"><span>Total</span><span id="sum-total">$30.000 CLP</span></div>
+    </div>
+    <button class="mp-btn" id="mp-btn" disabled>Pagar con Mercado Pago</button>
+    <div class="warn" id="warn-msg">Completa todos los campos para continuar</div>
+  </div>
+</div>
+<script>
+const PRICE=30000,UNITS=75;
+let qty=1,selectedDate=null,comunaValida=null,dirTimer=null;
+let viewDate=new Date();viewDate.setDate(1);
+const months=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const days=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+function fmt(n){return '$'+n.toLocaleString('es-CL')+' CLP'}
+async function checkEstado(){
+  try{
+    const r=await fetch('/api/estado');
+    const d=await r.json();
+    if(!d.abierto){
+      document.getElementById('closed-banner').style.display='block';
+      document.getElementById('closed-msg').textContent=d.mensaje;
+      ['step1','step2','step3','step4'].forEach(id=>document.getElementById(id).classList.add('disabled'));
+    }
+  }catch(e){}
+}
+function renderCal(){
+  const now=new Date();now.setHours(0,0,0,0);
+  const yr=viewDate.getFullYear(),mo=viewDate.getMonth();
+  document.getElementById('month-label').textContent=months[mo]+' '+yr;
+  const dn=document.getElementById('day-names');dn.innerHTML='';
+  days.forEach((d,i)=>{const e=document.createElement('div');e.className='cal-day-name'+(i===4?' thu':'');e.textContent=d;dn.appendChild(e);});
+  const fd=new Date(yr,mo,1).getDay(),dim=new Date(yr,mo+1,0).getDate();
+  const g=document.getElementById('cal-cells');g.innerHTML='';
+  for(let i=0;i<fd;i++){const e=document.createElement('div');e.className='cal-cell';g.appendChild(e);}
+  for(let d=1;d<=dim;d++){
+    const e=document.createElement('div'),dt=new Date(yr,mo,d),dow=dt.getDay(),past=dt<now;
+    const ahora=new Date(),dia=ahora.getDay(),hora=ahora.getHours()+ahora.getMinutes()/60;
+    const esJuevesBloqueado=(dia===3&&hora>=21)||(dia===4&&hora<15);
+    let c='cal-cell';
+    if(dow===4&&!past){
+      const diffDias=Math.round((dt-now)/(1000*60*60*24));
+      if(esJuevesBloqueado&&diffDias<7){c+=' disabled';}
+      else{c+=' thursday';e.onclick=()=>pick(dt);}
+    }
+    if(selectedDate&&dt.toDateString()===selectedDate.toDateString())c+=' selected';
+    e.className=c;e.textContent=d;g.appendChild(e);
+  }
+}
+function pick(dt){
+  selectedDate=dt;
+  const ds=dt.toLocaleDateString('es-CL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('selected-date-label').textContent='✓ '+ds.charAt(0).toUpperCase()+ds.slice(1);
+  document.getElementById('sum-date').textContent=dt.toLocaleDateString('es-CL',{day:'numeric',month:'short',year:'numeric'});
+  renderCal();checkReady();
+}
+function upd(){
+  document.getElementById('sum-product').textContent='Caja de Donuts x'+qty;
+  document.getElementById('sum-units').textContent=(UNITS*qty).toLocaleString('es-CL')+' donuts';
+  document.getElementById('sum-total').textContent=fmt(PRICE*qty);
+  document.getElementById('units-info').textContent='Total: '+(UNITS*qty).toLocaleString('es-CL')+' donuts';
+}
+function syncSummary(){
+  const n=document.getElementById('nombre').value.trim();
+  const dir=document.getElementById('direccion').value.trim();
+  document.getElementById('sum-nombre').textContent=n||'—';
+  document.getElementById('sum-dir').textContent=dir||'—';
+  document.getElementById('sum-comuna').textContent=comunaValida||'—';
+}
+async function validarDireccion(){
+  const dir=document.getElementById('direccion').value.trim();
+  const fb=document.getElementById('dir-feedback');
+  const inp=document.getElementById('direccion');
+  if(!dir){fb.textContent='';fb.className='dir-feedback';comunaValida=null;checkReady();return;}
+  try{
+    const r=await fetch('/api/validar-direccion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({direccion:dir})});
+    const d=await r.json();
+    if(d.valida){comunaValida=d.comuna;fb.textContent='✓ '+d.comuna+' — zona de despacho confirmada';fb.className='dir-feedback ok';inp.className='ok';}
+    else{comunaValida=null;fb.textContent=d.mensaje;fb.className='dir-feedback err';inp.className='err';}
+  }catch(e){comunaValida=null;}
+  syncSummary();checkReady();
+}
+function checkReady(){
+  const n=document.getElementById('nombre').value.trim();
+  const em=document.getElementById('email').value.trim();
+  const ok=n&&em&&em.includes('@')&&comunaValida&&selectedDate;
+  document.getElementById('mp-btn').disabled=!ok;
+  if(ok){document.getElementById('warn-msg').textContent='';}
+  else{
+    const missing=[];
+    if(!n)missing.push('nombre');
+    if(!em||!em.includes('@'))missing.push('email');
+    if(!comunaValida)missing.push('dirección válida');
+    if(!selectedDate)missing.push('fecha de despacho');
+    document.getElementById('warn-msg').textContent='Falta: '+missing.join(', ');
+  }
+}
+document.getElementById('nombre').addEventListener('input',()=>{syncSummary();checkReady();});
+document.getElementById('email').addEventListener('input',()=>{syncSummary();checkReady();});
+document.getElementById('direccion').addEventListener('input',()=>{syncSummary();clearTimeout(dirTimer);dirTimer=setTimeout(validarDireccion,600);});
+document.getElementById('btn-minus').onclick=()=>{if(qty>1){qty--;document.getElementById('qty').value=qty;upd();}};
+document.getElementById('btn-plus').onclick=()=>{if(qty<10){qty++;document.getElementById('qty').value=qty;upd();}};
+document.getElementById('prev-month').onclick=()=>{viewDate.setMonth(viewDate.getMonth()-1);renderCal();};
+document.getElementById('next-month').onclick=()=>{viewDate.setMonth(viewDate.getMonth()+1);renderCal();};
+document.getElementById('mp-btn').onclick=async()=>{
+  const nombre=document.getElementById('nombre').value.trim();
+  const email=document.getElementById('email').value.trim();
+  const direccion=document.getElementById('direccion').value.trim();
+  const btn=document.getElementById('mp-btn');
+  btn.textContent='Procesando...';btn.disabled=true;
+  try{
+    const res=await fetch('/crear-preferencia',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,email,cantidad:qty,direccion,fecha_despacho:selectedDate.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long',year:'numeric'})})});
+    const data=await res.json();
+    if(data.init_point){window.location.href=data.init_point;}
+    else throw new Error(data.error||'Error desconocido');
+  }catch(err){
+    document.getElementById('warn-msg').textContent='Error: '+err.message;
+    btn.textContent='Pagar con Mercado Pago';btn.disabled=false;
+  }
+};
+checkEstado();renderCal();upd();checkReady();
+</script>
+</body>
+</html>
