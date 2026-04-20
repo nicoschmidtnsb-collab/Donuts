@@ -92,6 +92,14 @@
         <div class="units-tag">75 unidades / caja</div>
       </div>
     </div>
+    <div style="margin-top:1rem;padding-top:1rem;border-top:0.5px solid #e0d8d0">
+      <div style="font-size:11px;font-weight:500;color:#9a7060;margin-bottom:8px;letter-spacing:0.3px">CARACTERÍSTICAS</div>
+      <div style="display:grid;gap:5px">
+        <div style="display:flex;gap:8px;font-size:12px"><span style="color:#9a7060;min-width:90px">Contenido</span><span style="color:#2d1a0e">75 donuts azucaradas</span></div>
+        <div style="display:flex;gap:8px;font-size:12px"><span style="color:#9a7060;min-width:90px">Formato</span><span style="color:#2d1a0e">Producto congelado</span></div>
+        <div style="display:flex;gap:8px;font-size:12px"><span style="color:#9a7060;min-width:90px">Preparación</span><span style="color:#2d1a0e">Descongelar 15-20 min a temperatura ambiente</span></div>
+      </div>
+    </div>
     <div class="qty-row">
       <span class="qty-label">Cantidad de cajas</span>
       <div class="qty-ctrl">
@@ -115,6 +123,13 @@
       </div>
     </div>
     <div class="field">
+      <label>Teléfono</label>
+      <div style="display:flex;align-items:center">
+        <span style="padding:10px 12px;background:#f9f5f0;border:0.5px solid #e0d8d0;border-right:none;border-radius:10px 0 0 10px;font-size:14px;color:#9a7060;white-space:nowrap">+569</span>
+        <input type="tel" id="telefono" placeholder="12345678" maxlength="8" autocomplete="tel" style="border-radius:0 10px 10px 0">
+      </div>
+    </div>
+    <div class="field">
       <label>Dirección de despacho</label>
       <textarea id="direccion" placeholder="Ej: Av. Vitacura 1234, Vitacura"></textarea>
       <div class="comunas-hint">Despachamos solo a <span>Lo Barnechea</span>, <span>Vitacura</span> y <span>Las Condes</span>. Incluye tu comuna.</div>
@@ -130,7 +145,7 @@
     </div>
     <div class="cal-grid" id="day-names"></div>
     <div class="cal-grid" id="cal-cells"></div>
-    <div class="dispatch-note">Solo disponible los <span>jueves</span></div>
+    <div class="dispatch-note">Solo disponible los <span>jueves</span> · máximo 2 semanas a futuro</div>
     <div class="selected-date" id="selected-date-label"></div>
   </div>
   <div class="step" id="step4">
@@ -182,7 +197,9 @@ function renderCal(){
     let c='cal-cell';
     if(dow===4&&!past){
       const diffDias=Math.round((dt-now)/(1000*60*60*24));
+      const maxDias=esJuevesBloqueado?14:7;
       if(esJuevesBloqueado&&diffDias<7){c+=' disabled';}
+      else if(diffDias>maxDias+6){c+=' disabled';}
       else{c+=' thursday';e.onclick=()=>pick(dt);}
     }
     if(selectedDate&&dt.toDateString()===selectedDate.toDateString())c+=' selected';
@@ -225,19 +242,22 @@ async function validarDireccion(){
 function checkReady(){
   const n=document.getElementById('nombre').value.trim();
   const em=document.getElementById('email').value.trim();
-  const ok=n&&em&&em.includes('@')&&comunaValida&&selectedDate;
+  const tel=document.getElementById('telefono').value.trim();
+  const ok=n&&em&&em.includes('@')&&tel.length===8&&comunaValida&&selectedDate;
   document.getElementById('mp-btn').disabled=!ok;
   if(ok){document.getElementById('warn-msg').textContent='';}
   else{
     const missing=[];
     if(!n)missing.push('nombre');
     if(!em||!em.includes('@'))missing.push('email');
+    if(!tel||tel.length!==8)missing.push('teléfono (8 dígitos)');
     if(!comunaValida)missing.push('dirección válida');
     if(!selectedDate)missing.push('fecha de despacho');
     document.getElementById('warn-msg').textContent='Falta: '+missing.join(', ');
   }
 }
 document.getElementById('nombre').addEventListener('input',()=>{syncSummary();checkReady();});
+document.getElementById('telefono').addEventListener('input',()=>{checkReady();});
 document.getElementById('email').addEventListener('input',()=>{syncSummary();checkReady();});
 document.getElementById('direccion').addEventListener('input',()=>{syncSummary();clearTimeout(dirTimer);dirTimer=setTimeout(validarDireccion,600);});
 document.getElementById('btn-minus').onclick=()=>{if(qty>1){qty--;document.getElementById('qty').value=qty;upd();}};
@@ -251,7 +271,9 @@ document.getElementById('mp-btn').onclick=async()=>{
   const btn=document.getElementById('mp-btn');
   btn.textContent='Procesando...';btn.disabled=true;
   try{
-    const res=await fetch('/crear-preferencia',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre,email,cantidad:qty,direccion,fecha_despacho:selectedDate.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long',year:'numeric'})})});
+    const res=await fetch('/crear-preferencia',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({nombre,email,telefono:'+569'+document.getElementById('telefono').value.trim(),cantidad:qty,direccion,
+        fecha_despacho:selectedDate.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long',year:'numeric'})})});
     const data=await res.json();
     if(data.init_point){window.location.href=data.init_point;}
     else throw new Error(data.error||'Error desconocido');
